@@ -1,0 +1,31 @@
+---
+- name: Setup Nginx Web Servers
+  hosts: webservers  
+  become: yes        
+  gather_facts: yes  
+  
+  tasks:
+    - name: Update apt cache and install Nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Ensure Nginx service is running and enabled
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Deploy custom index.html to show server identity
+      copy:
+        dest: /var/www/html/index.html
+        content: |
+          <html>
+            <body style="background-color: #2b2b2b; color: white; font-family: Arial;">
+              <h1>Infrastructure Deployed Successfully!</h1>
+              <h2>Hello from Server: {{ ansible_hostname }}</h2>
+              <p>Managed by Groot - Automated via Jenkins, Terraform & Ansible</p>
+            </body>
+          </html>
+        mode: '0644'
