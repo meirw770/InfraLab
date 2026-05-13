@@ -1,0 +1,64 @@
+pipeline {
+    agent any
+
+    environment {     
+        ANSIBLE_HOST_KEY_CHECKING = 'False'
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+                echo 'Code checked out successfully.'
+            }
+        }
+
+        stage('Terraform Init & Apply') {
+            steps {
+                dir('terraform') { 
+                    sh 'terraform init'
+                    sh 'terraform apply -auto-approve'           
+                    sh 'terraform output -raw web_ips > ../ansible/inventory.txt'
+                    sh 'terraform output -raw load_balancer_ip > ../lb_ip.txt'
+                }
+            }
+        }
+
+        stage('Wait for SSH') {
+            steps {
+                echo 'Waiting 45 seconds for VMs to boot and SSH to be ready...'
+                sleep 45
+            }
+        }
+
+        stage('Ansible Configuration') {
+            steps {
+                dir('ansible') {
+                    sh 'ansible-playbook -i inventory.txt web_setup.yml -u ubuntu --private-key /path/to/your/private_key.pem'
+                }
+            }
+        }
+
+        stage('Test Load Balancer') {
+            steps {
+                script {
+                    def lbIP = readFile('lb_ip.txt').trim()
+                    echo "Testing Load Balancer at http://${lbIP}"
+                    sh "curl -s http://${lbIP} | grep 'Infrastructure Deployed Successfully'"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline execution finished.'
+        }
+        success {
+            echo 'Boom! Environment is up and running.'
+        }
+        failure {
+            echo 'Pipeline failed. Check the logs.'
+        }
+    }
+}
